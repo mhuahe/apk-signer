@@ -197,7 +197,7 @@
             </div>
             <div class="buttons-container">
                 <button type="submit" class="btn" id="submitBtn" disabled>上传并签名</button>
-                <button type="button" id="downloadBtn" class="btn" onclick="location.href='/download'">下载签名后的APK</button>
+                <button type="button" id="downloadBtn" class="btn">下载签名后的APK</button>
             </div>
         </form>
         
@@ -212,6 +212,9 @@
 
     <script type="text/javascript">
         //<![CDATA[
+        // 获取当前应用的上下文路径
+        var contextPath = window.location.pathname.substring(0, window.location.pathname.indexOf("/",2));
+        
         // 获取按钮元素
         var submitBtn = document.getElementById('submitBtn');
         var fileInput = document.getElementById('fileInput');
@@ -290,7 +293,8 @@
             
             // 发送请求
             var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/upload', true);
+            xhr.open('POST', contextPath + '/upload', true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
             
             // 开始上传
             xhr.upload.onloadstart = function() {
@@ -341,15 +345,31 @@
             
             // 错误处理
             xhr.onerror = function() {
-                submitBtn.disabled = !fileInput.files.length; // 根据是否有文件决定按钮状态
+                submitBtn.disabled = !fileInput.files.length;
                 fileInput.disabled = false;
                 updateStage('FAILED');
                 progressBar.style.background = '#f44336';
                 alert('上传失败：网络错误');
             };
             
+            // 超时处理
+            xhr.timeout = 300000; // 5分钟超时
+            xhr.ontimeout = function() {
+                submitBtn.disabled = !fileInput.files.length;
+                fileInput.disabled = false;
+                updateStage('FAILED');
+                progressBar.style.background = '#f44336';
+                alert('上传超时，请重试');
+            };
+            
             // 发送数据
             xhr.send(formData);
+        };
+
+        // 修改下载按钮的链接
+        document.getElementById('downloadBtn').onclick = function() {
+            window.location.href = contextPath + '/download';
+            return false;
         };
         //]]>
     </script>

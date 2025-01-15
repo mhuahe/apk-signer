@@ -25,25 +25,50 @@ import java.io.InputStreamReader;
 public class ApkController {
     
     private static final Logger logger = LoggerFactory.getLogger(ApkController.class);
+    @Value("${app.upload.dir.windows}")
+    private String windowsUploadDir;
+    
+    @Value("${app.upload.dir.linux}")
+    private String linuxUploadDir;
+    
+    @Value("${app.sign.script.windows}")
+    private String windowsSignScript;
+    
+    @Value("${app.sign.script.linux}")
+    private String linuxSignScript;
+    
     private String uploadDir;
     private String signScript;
     private static final String SIGNED_APK_NAME = "signed.apk";
     private static final String ORIGINAL_APK_NAME = "original.apk";
     
-    @Value("${app.upload.dir}")
-    private String configuredUploadDir;
-    
-    @Value("${app.sign.script}")
-    private String configuredSignScript;
-    
     @PostConstruct
     private void init() {
-        this.uploadDir = configuredUploadDir;
-        this.signScript = configuredSignScript;
+        boolean isWindows = isWindows();
+        
+        // 根据操作系统选择配置
+        this.uploadDir = normalizePath(isWindows ? windowsUploadDir : linuxUploadDir);
+        this.signScript = normalizePath(isWindows ? windowsSignScript : linuxSignScript);
+        
         createUploadDir();
         checkSignScript();
+        
+        // 在Linux环境下确保脚本使用正确的换行符
+        if (!isWindows) {
+            try {
+                convertScriptToUnix();
+            } catch (IOException e) {
+                logger.error("转换脚本换行符失败", e);
+            }
+        }
+        
+        logger.info("当前操作系统: {}", System.getProperty("os.name"));
         logger.info("上传目录已初始化: {}", uploadDir);
         logger.info("签名脚本已配置: {}", signScript);
+    }
+    
+    private String normalizePath(String path) {
+        return path.replace('\\', File.separatorChar).replace('/', File.separatorChar);
     }
     
     private void checkSignScript() {
@@ -53,7 +78,14 @@ public class ApkController {
             throw new RuntimeException("签名脚本不存在: " + signScript);
         }
         if (!script.canExecute()) {
-            logger.warn("签名脚本可能没有执行权限: {}", signScript);
+            // 在Linux下尝试添加执行权限
+            if (!isWindows()) {
+                boolean b = script.setExecutable(true);
+                logger.info("在Linux下尝试添加执行权限结果: {}", b);
+            }
+            if (!script.canExecute()) {
+                logger.warn("签名脚本可能没有执行权限: {}", signScript);
+            }
         }
     }
     
@@ -68,29 +100,92 @@ public class ApkController {
             }
         }
     }
+
+    private Boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("windows");
+    }
     
     @GetMapping("/")
     public String index() {
         return "upload";
     }
     
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseBody
     public String uploadApk(@RequestParam("apkFile") MultipartFile file) {
+        logger.info("收到上传请求");
         try {
+            if (file == null || file.isEmpty()) {
+                logger.warn("文件为空");
+                return "error: 未选择文件或文件为空";
+            }
+            
+            logger.info("文件信息 - 名称: {}, 大小: {}bytes", file.getOriginalFilename(), file.getSize());
+            
+            // 检查文件大小
+            if (file.getSize() > 100 * 1024 * 1024) { // 100MB
+                return "error: 文件大小超过限制";
+            }
+            
+            // 检查文件类型
+            String fileName = file.getOriginalFilename();
+            if (fileName == null || !fileName.toLowerCase().endsWith(".apk")) {
+                return "error: 请选择APK文件";
+            }
+            
+            // 检查上传目录权限
+            File dir = new File(uploadDir);
+            logger.info("上传目录权限检查 - 存在: {}, 可读: {}, 可写: {}, 可执行: {}", 
+                dir.exists(), dir.canRead(), dir.canWrite(), dir.canExecute());
+
+            if (!dir.canWrite()) {
+                String error = String.format("上传目录没有写入权限: %s", uploadDir);
+                logger.error(error);
+                return "error: " + error;
+            }
+
             createUploadDir();
             
             File originalApkFile = new File(uploadDir, ORIGINAL_APK_NAME);
-            logger.info("正在保存文件到: {}", originalApkFile.getAbsolutePath());
-            file.transferTo(originalApkFile);
+            logger.info("准备保存文件 - 路径: {}, 大小: {}bytes", 
+                originalApkFile.getAbsolutePath(), file.getSize());
             
-            // 使用配置的脚本路径
-            ProcessBuilder processBuilder = new ProcessBuilder("cmd", "/c", signScript, uploadDir);
-            processBuilder.directory(new File(uploadDir)); // 直接在上传目录中执行
+            try {
+                file.transferTo(originalApkFile);
+                logger.info("文件保存成功 - 文件存在: {}, 大小: {}bytes", 
+                    originalApkFile.exists(), originalApkFile.length());
+            } catch (IOException e) {
+                String error = String.format("保存文件失败: %s, 错误: %s", 
+                    originalApkFile.getAbsolutePath(), e.getMessage());
+                logger.error(error, e);
+                return "error: " + error;
+            }
+            
+            // 检查脚本权限
+            File scriptFile = new File(signScript);
+            logger.info("脚本权限检查 - 存在: {}, 可读: {}, 可写: {}, 可执行: {}", 
+                scriptFile.exists(), scriptFile.canRead(), scriptFile.canWrite(), scriptFile.canExecute());
+
+            if (!scriptFile.canExecute()) {
+                String error = String.format("签名脚本没有执行权限: %s", signScript);
+                logger.error(error);
+                return "error: " + error;
+            }
+
+            // 根据操作系统选择不同的命令
+            ProcessBuilder processBuilder;
+            if (isWindows()) {
+                processBuilder = new ProcessBuilder("cmd", "/c", signScript, uploadDir);
+            } else {
+                processBuilder = new ProcessBuilder("/bin/bash", signScript, uploadDir);
+                logger.info("Linux环境检查 - bash是否存在: {}", new File("/bin/bash").exists());
+            }
+            
+            processBuilder.directory(new File(uploadDir));
             processBuilder.redirectErrorStream(true);
             
-            logger.info("工作目录: {}", processBuilder.directory().getAbsolutePath());
-            logger.info("执行命令: {} {}", signScript, uploadDir);
+            logger.info("准备执行命令 - 工作目录: {}, 命令: {} {}", 
+                processBuilder.directory().getAbsolutePath(), signScript, uploadDir);
             
             Process process = processBuilder.start();
             
@@ -121,8 +216,9 @@ public class ApkController {
             }
             
         } catch (Exception e) {
-            logger.error("处理APK文件时发生错误", e);
-            return "error: " + e.getMessage();
+            String error = String.format("处理APK文件时发生错误: %s", e.getMessage());
+            logger.error(error, e);
+            return "error: " + error;
         }
     }
     
@@ -145,5 +241,23 @@ public class ApkController {
             logger.error("下载文件时发生错误", e);
             return ResponseEntity.notFound().build();
         }
+    }
+
+    private void convertScriptToUnix() throws IOException {
+        File scriptFile = new File(signScript);
+        if (!scriptFile.exists()) {
+            return;
+        }
+        
+        // 读取脚本内容
+        String content = new String(java.nio.file.Files.readAllBytes(scriptFile.toPath()), StandardCharsets.UTF_8);
+        // 替换所有 CRLF 为 LF
+        content = content.replace("\r\n", "\n");
+        // 写回文件
+        java.nio.file.Files.write(scriptFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
+        
+        // 确保有执行权限
+        scriptFile.setExecutable(true);
+        logger.info("脚本文件已转换为Unix格式");
     }
 } 
