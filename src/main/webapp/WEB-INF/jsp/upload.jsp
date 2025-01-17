@@ -1,4 +1,4 @@
-<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <!DOCTYPE html>
 <html>
 <head>
@@ -147,12 +147,12 @@
             width: 0%;
             height: 100%;
             background: linear-gradient(45deg,
-                #2ecc71 25%,
-                #27ae60 25%,
-                #27ae60 50%,
-                #2ecc71 50%,
-                #2ecc71 75%,
-                #27ae60 75%);
+            #2ecc71 25%,
+            #27ae60 25%,
+            #27ae60 50%,
+            #2ecc71 50%,
+            #2ecc71 75%,
+            #27ae60 75%);
             background-size: 20px 20px;
             animation: progressAnimation 1s linear infinite;
             transition: width 0.5s ease-in-out;
@@ -187,191 +187,190 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>APK签名工具</h2>
-        <form id="uploadForm" class="upload-section">
-            <div class="file-input-wrapper">
-                <input type="file" name="apkFile" accept=".apk" required class="file-input" id="fileInput">
-                <label for="fileInput" class="file-label">选择APK文件</label>
-                <div class="selected-file" id="selectedFile">未选择文件</div>
-            </div>
-            <div class="buttons-container">
-                <button type="submit" class="btn" id="submitBtn" disabled>上传并签名</button>
-                <button type="button" id="downloadBtn" class="btn">下载签名后的APK</button>
-            </div>
-        </form>
-        
-        <!-- 进度条 -->
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-bar">
-                <div class="progress" id="progressBar"></div>
-            </div>
-            <div class="progress-text" id="progressText">准备上传...</div>
+<div class="container">
+    <h2>APK签名工具</h2>
+    <form id="uploadForm" class="upload-section">
+        <div class="file-input-wrapper">
+            <input type="file" name="apkFile" accept=".apk" required class="file-input" id="fileInput">
+            <label for="fileInput" class="file-label">选择APK文件</label>
+            <div class="selected-file" id="selectedFile">未选择文件</div>
         </div>
+        <div class="buttons-container">
+            <button type="submit" class="btn" id="submitBtn" disabled>上传并签名</button>
+            <button type="button" id="downloadBtn" class="btn">下载签名后的APK</button>
+        </div>
+    </form>
+
+    <!-- 进度条 -->
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-bar">
+            <div class="progress" id="progressBar"></div>
+        </div>
+        <div class="progress-text" id="progressText">准备上传...</div>
     </div>
+</div>
 
-    <script type="text/javascript">
-        //<![CDATA[
-        // 获取当前应用的上下文路径
-        var contextPath = window.location.pathname.substring(0, window.location.pathname.indexOf("/",2));
-        
-        // 获取按钮元素
-        var submitBtn = document.getElementById('submitBtn');
-        var fileInput = document.getElementById('fileInput');
-        var selectedFile = document.getElementById('selectedFile');
-        
-        // 文件选择处理
-        fileInput.onchange = function(e) {
-            var file = e.target.files[0];
-            if (file) {
-                // 有文件被选择
-                selectedFile.textContent = file.name;
-                submitBtn.disabled = false;  // 启用上传按钮
-                
-                // 检查文件类型
-                if (!file.name.toLowerCase().endsWith('.apk')) {
-                    selectedFile.textContent = '请选择APK文件';
-                    submitBtn.disabled = true;
-                    fileInput.value = '';  // 清空文件选择
-                    alert('请选择正确的APK文件！');
-                    return;
-                }
-                
-                // 检查文件大小（如果需要）
-                if (file.size > 100 * 1024 * 1024) { // 100MB限制
-                    selectedFile.textContent = '文件太大，请选择小于100MB的文件';
-                    submitBtn.disabled = true;
-                    fileInput.value = '';  // 清空文件选择
-                    alert('文件大小超过限制！');
-                    return;
-                }
+<script type="text/javascript">
+    //<![CDATA[
+    // 获取当前应用的上下文路径
+    const contextPath = window.location.pathname.substring(0, window.location.pathname.indexOf("/", 2));
+
+    // 获取按钮元素
+    const submitBtn = document.getElementById('submitBtn');
+    const fileInput = document.getElementById('fileInput');
+    const selectedFile = document.getElementById('selectedFile');
+
+    // 文件选择处理
+    fileInput.onchange = function (e) {
+        const file = e.target.files[0];
+        if (file) {
+            // 有文件被选择
+            selectedFile.textContent = file.name;
+            submitBtn.disabled = false;  // 启用上传按钮
+
+            // 检查文件类型
+            if (!file.name.toLowerCase().endsWith('.apk')) {
+                selectedFile.textContent = '请选择APK文件';
+                submitBtn.disabled = true;
+                fileInput.value = '';  // 清空文件选择
+                alert('请选择正确的APK文件！');
+            }
+        } else {
+            // 没有文件被选择
+            selectedFile.textContent = '未选择文件';
+            submitBtn.disabled = true;  // 禁用上传按钮
+        }
+    };
+
+    // 表单提交处理
+    document.getElementById('uploadForm').onsubmit = function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const progressContainer = document.getElementById('progressContainer');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // 显示进度条并禁用所有操作
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        downloadBtn.style.display = 'none';
+        submitBtn.disabled = true;
+        fileInput.disabled = true;
+
+        // 定义阶段
+        const stages = {
+            PREPARING: {progress: 0, text: '准备上传...'},
+            UPLOADING: {progress: 10, text: '正在上传APK文件'},
+            UPLOADED: {progress: 60, text: '上传完成，准备签名'},
+            SIGNING: {progress: 70, text: '正在进行APK签名'},
+            VERIFYING: {progress: 90, text: '正在验证签名'},
+            COMPLETED: {progress: 100, text: '签名完成！'},
+            FAILED: {text: '处理失败'}
+        };
+
+        // 更新阶段
+        function updateStage(stage, actualProgress) {
+            const stageInfo = stages[stage];
+            const progress = actualProgress || stageInfo.progress;
+            progressBar.style.width = progress + '%';
+            progressText.textContent = stageInfo.text;
+            if (progress) {
+                progressText.textContent += ' (' + parseInt(progress) + '%)';
+            }
+        }
+
+        // 解析响应
+        function parseResponse(responseText) {
+            try {
+                // 尝试解析 JSON
+                const {code, message, data} = JSON.parse(responseText);
+                return {code, message, data};
+            } catch (error) {
+                // 不是 JSON 或解析失败
+                console.error('响应解析失败：', error);
+                return {
+                    code: -1,
+                    message: '响应格式错误',
+                    data: responseText // 保留原始响应
+                };
+            }
+        }
+
+        // 发送请求
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', contextPath + '/upload',);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+        // 开始上传
+        xhr.upload.onloadstart = function () {
+            updateStage('PREPARING');
+        };
+
+        // 上传进度
+        xhr.upload.onprogress = function (e) {
+            if (e.lengthComputable) {
+                const uploadProgress = (e.loaded / e.total) * 50 + 10;
+                updateStage('UPLOADING', uploadProgress);
+            }
+        };
+
+        // 上传完成
+        xhr.upload.onload = function () {
+            updateStage('UPLOADED');
+        };
+
+        // 完成处理
+        xhr.onload = function () {
+            fileInput.disabled = false;
+            const {code, message} = parseResponse(xhr.responseText);
+            if (code === 200) {
+                updateStage('SIGNING');
+                setTimeout(function () {
+                    updateStage('VERIFYING');
+                    setTimeout(function () {
+                        updateStage('COMPLETED');
+                        downloadBtn.style.display = 'inline-block';
+                    }, 500);
+                }, 500);
             } else {
-                // 没有文件被选择
-                selectedFile.textContent = '未选择文件';
-                submitBtn.disabled = true;  // 禁用上传按钮
+                submitBtn.disabled = !fileInput.files.length; // 根据是否有文件决定按钮状态
+                updateStage('FAILED');
+                progressBar.style.background = '#f44336';
+                alert('上传失败：\n' + decodeURIComponent(message));
             }
         };
 
-        // 表单提交处理
-        document.getElementById('uploadForm').onsubmit = function(e) {
-            e.preventDefault();
-            
-            var formData = new FormData(this);
-            var progressBar = document.getElementById('progressBar');
-            var progressText = document.getElementById('progressText');
-            var progressContainer = document.getElementById('progressContainer');
-            var downloadBtn = document.getElementById('downloadBtn');
-            
-            // 显示进度条并禁用所有操作
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            downloadBtn.style.display = 'none';
-            submitBtn.disabled = true;
-            fileInput.disabled = true;
-            
-            // 定义阶段
-            var stages = {
-                PREPARING: { progress: 0, text: '准备上传...' },
-                UPLOADING: { progress: 10, text: '正在上传APK文件' },
-                UPLOADED: { progress: 60, text: '上传完成，准备签名' },
-                SIGNING: { progress: 70, text: '正在进行APK签名' },
-                VERIFYING: { progress: 90, text: '正在验证签名' },
-                COMPLETED: { progress: 100, text: '签名完成！' },
-                FAILED: { text: '处理失败' }
-            };
-            
-            // 更新阶段
-            function updateStage(stage, actualProgress) {
-                var stageInfo = stages[stage];
-                var progress = actualProgress || stageInfo.progress;
-                progressBar.style.width = progress + '%';
-                progressText.textContent = stageInfo.text;
-                if (progress) {
-                    progressText.textContent += ' (' + parseInt(progress) + '%)';
-                }
-            }
-            
-            // 发送请求
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', contextPath + '/upload', true);
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-            
-            // 开始上传
-            xhr.upload.onloadstart = function() {
-                updateStage('PREPARING');
-            };
-            
-            // 上传进度
-            xhr.upload.onprogress = function(e) {
-                if (e.lengthComputable) {
-                    var uploadProgress = (e.loaded / e.total) * 50 + 10;
-                    updateStage('UPLOADING', uploadProgress);
-                }
-            };
-            
-            // 上传完成
-            xhr.upload.onload = function() {
-                updateStage('UPLOADED');
-            };
-            
-            // 完成处理
-            xhr.onload = function() {
-                fileInput.disabled = false;
-                if (xhr.status === 200) {
-                    var result = xhr.responseText;
-                    if(result.startsWith('success')) {
-                        updateStage('SIGNING');
-                        setTimeout(function() {
-                            updateStage('VERIFYING');
-                            setTimeout(function() {
-                                updateStage('COMPLETED');
-                                downloadBtn.style.display = 'inline-block';
-                            }, 500);
-                        }, 500);
-                    } else {
-                        submitBtn.disabled = !fileInput.files.length; // 根据是否有文件决定按钮状态
-                        var errorMsg = result.replace('error: ', '').trim();
-                        updateStage('FAILED');
-                        progressBar.style.background = '#f44336';
-                        alert('处理失败：\n' + decodeURIComponent(errorMsg));
-                    }
-                } else {
-                    submitBtn.disabled = !fileInput.files.length; // 根据是否有文件决定按钮状态
-                    updateStage('FAILED');
-                    progressBar.style.background = '#f44336';
-                    alert('上传失败：服务器错误');
-                }
-            };
-            
-            // 错误处理
-            xhr.onerror = function() {
-                submitBtn.disabled = !fileInput.files.length;
-                fileInput.disabled = false;
-                updateStage('FAILED');
-                progressBar.style.background = '#f44336';
-                alert('上传失败：网络错误');
-            };
-            
-            // 超时处理
-            xhr.timeout = 300000; // 5分钟超时
-            xhr.ontimeout = function() {
-                submitBtn.disabled = !fileInput.files.length;
-                fileInput.disabled = false;
-                updateStage('FAILED');
-                progressBar.style.background = '#f44336';
-                alert('上传超时，请重试');
-            };
-            
-            // 发送数据
-            xhr.send(formData);
+        // 错误处理
+        xhr.onerror = function () {
+            submitBtn.disabled = !fileInput.files.length;
+            fileInput.disabled = false;
+            updateStage('FAILED');
+            progressBar.style.background = '#f44336';
+            alert('上传失败：网络错误');
         };
 
-        // 修改下载按钮的链接
-        document.getElementById('downloadBtn').onclick = function() {
-            window.location.href = contextPath + '/download';
-            return false;
+        // 超时处理
+        xhr.timeout = 300000; // 5分钟超时
+        xhr.ontimeout = function () {
+            submitBtn.disabled = !fileInput.files.length;
+            fileInput.disabled = false;
+            updateStage('FAILED');
+            progressBar.style.background = '#f44336';
+            alert('上传超时，请重试');
         };
-        //]]>
-    </script>
+
+        // 发送数据
+        xhr.send(formData);
+    };
+
+    // 修改下载按钮的链接
+    document.getElementById('downloadBtn').onclick = function () {
+        window.location.href = contextPath + '/download';
+        return false;
+    };
+    //]]>
+</script>
 </body>
 </html> 
