@@ -41,13 +41,13 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
+            gap: 12px;
         }
 
         .file-input-wrapper {
             width: 100%;
             max-width: 300px;
-            margin-bottom: 5px;
+            margin-bottom: 0;
         }
 
         .file-input {
@@ -77,12 +77,13 @@
             color: #666;
             font-size: 14px;
             word-break: break-all;
+            margin-bottom: 4px;
         }
 
         .buttons-container {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 12px;
             align-items: center;
             width: 100%;
             max-width: 300px;
@@ -188,21 +189,50 @@
         .keystore-wrapper {
             width: 100%;
             max-width: 300px;
-            margin: 15px 0;
+            margin: 0;
         }
 
         .keystore-select {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 14px;
             background-color: white;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8.825L1.175 4 2.238 2.938 6 6.7l3.763-3.763L10.825 4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
         }
 
         .keystore-select:focus {
             outline: none;
             border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        .keystore-select:hover {
+            border-color: #3498db;
+        }
+
+        .keystore-label {
+            display: block;
+            margin-bottom: 6px;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* 添加分隔线 */
+        .divider {
+            width: 100%;
+            max-width: 300px;
+            height: 1px;
+            background: #eee;
+            margin: 12px auto;
         }
     </style>
 </head>
@@ -211,15 +241,21 @@
     <h2>APK签名工具</h2>
     <form id="uploadForm" class="upload-section">
         <div class="file-input-wrapper">
+            <label class="keystore-label">APK文件</label>
             <input type="file" name="apkFile" accept=".apk" required class="file-input" id="fileInput">
             <label for="fileInput" class="file-label">选择APK文件</label>
             <div class="selected-file" id="selectedFile">未选择文件</div>
         </div>
+
+        <div class="divider"></div>
+
         <div class="keystore-wrapper">
+            <label class="keystore-label">签名证书</label>
             <select id="keystoreSelect" class="keystore-select" required>
-                <option value="">请选择签名文件</option>
+                <option value="">请选择签名证书</option>
             </select>
         </div>
+
         <div class="buttons-container">
             <button type="submit" class="btn" id="submitBtn" disabled>上传并签名</button>
             <button type="button" id="downloadBtn" class="btn">下载签名后的APK</button>
@@ -269,45 +305,56 @@
         updateSubmitButtonState();
     };
 
-    // 加载签名文件列表
+    // 添加一个函数来处理文件名显示
+    function formatFileName(fileName, maxLength = 20) {
+        if (fileName.length <= maxLength) {
+            return fileName;
+        }
+        const ext = fileName.lastIndexOf('.') > -1 
+            ? fileName.substring(fileName.lastIndexOf('.')) 
+            : '';
+        const nameWithoutExt = fileName.substring(0, fileName.length - ext.length);
+        const truncatedName = nameWithoutExt.substring(0, maxLength - 3 - ext.length) + '...';
+        return truncatedName + ext;
+    }
+
+    // 修改加载签名文件列表的函数
     function loadKeystores() {
         fetch(contextPath + '/keystores')
             .then(response => response.json())
             .then(result => {
                 const select = document.getElementById('keystoreSelect');
-                select.innerHTML = ''; // 清空现有选项
+                select.innerHTML = '';
                 
                 if (result.code === 200 && Array.isArray(result.data)) {
                     if (result.data.length > 0) {
-                        // 有数据时，直接添加选项
+                        // 添加签名文件选项
                         result.data.forEach((keystore, index) => {
                             const option = document.createElement('option');
                             option.value = keystore;
-                            option.textContent = keystore;
+                            // 格式化显示名称
+                            option.textContent = formatFileName(keystore);
+                            // 添加完整名称作为title，鼠标悬停时显示
+                            option.title = keystore;
                             select.appendChild(option);
                         });
                         // 默认选中第一个选项
                         select.selectedIndex = 0;
                     } else {
-                        // 没有数据时，显示提示选项
                         const option = document.createElement('option');
                         option.value = '';
-                        option.textContent = '未找到签名文件';
+                        option.textContent = '未找到签名证书';
                         select.appendChild(option);
                     }
                 } else {
-                    // 加载失败时，显示错误提示
                     const option = document.createElement('option');
                     option.value = '';
-                    option.textContent = '加载签名文件失败';
+                    option.textContent = '加载签名证书失败';
                     select.appendChild(option);
-                    console.error('获取签名文件列表失败:', result.message);
                 }
-                // 触发change事件以更新按钮状态
                 select.dispatchEvent(new Event('change'));
             })
             .catch(error => {
-                console.error('加载签名文件失败:', error);
                 const select = document.getElementById('keystoreSelect');
                 select.innerHTML = '<option value="">加载失败，请刷新重试</option>';
                 select.dispatchEvent(new Event('change'));
@@ -322,7 +369,7 @@
         e.preventDefault();
         
         if (!keystoreSelect.value) {
-            alert('请选择签名文件');
+            alert('请选择签名证书');
             return;
         }
         
