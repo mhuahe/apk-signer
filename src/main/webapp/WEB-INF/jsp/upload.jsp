@@ -184,6 +184,26 @@
             cursor: not-allowed;
             transform: none !important;
         }
+
+        .keystore-wrapper {
+            width: 100%;
+            max-width: 300px;
+            margin: 15px 0;
+        }
+
+        .keystore-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: white;
+        }
+
+        .keystore-select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
     </style>
 </head>
 <body>
@@ -194,6 +214,11 @@
             <input type="file" name="apkFile" accept=".apk" required class="file-input" id="fileInput">
             <label for="fileInput" class="file-label">选择APK文件</label>
             <div class="selected-file" id="selectedFile">未选择文件</div>
+        </div>
+        <div class="keystore-wrapper">
+            <select id="keystoreSelect" class="keystore-select" required>
+                <option value="">请选择签名文件</option>
+            </select>
         </div>
         <div class="buttons-container">
             <button type="submit" class="btn" id="submitBtn" disabled>上传并签名</button>
@@ -219,6 +244,7 @@
     const submitBtn = document.getElementById('submitBtn');
     const fileInput = document.getElementById('fileInput');
     const selectedFile = document.getElementById('selectedFile');
+    const keystoreSelect = document.getElementById('keystoreSelect');
 
     // 文件选择处理
     fileInput.onchange = function (e) {
@@ -240,13 +266,68 @@
             selectedFile.textContent = '未选择文件';
             submitBtn.disabled = true;  // 禁用上传按钮
         }
+        updateSubmitButtonState();
     };
+
+    // 加载签名文件列表
+    function loadKeystores() {
+        fetch(contextPath + '/keystores')
+            .then(response => response.json())
+            .then(result => {
+                const select = document.getElementById('keystoreSelect');
+                select.innerHTML = ''; // 清空现有选项
+                
+                if (result.code === 200 && Array.isArray(result.data)) {
+                    if (result.data.length > 0) {
+                        // 有数据时，直接添加选项
+                        result.data.forEach((keystore, index) => {
+                            const option = document.createElement('option');
+                            option.value = keystore;
+                            option.textContent = keystore;
+                            select.appendChild(option);
+                        });
+                        // 默认选中第一个选项
+                        select.selectedIndex = 0;
+                    } else {
+                        // 没有数据时，显示提示选项
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = '未找到签名文件';
+                        select.appendChild(option);
+                    }
+                } else {
+                    // 加载失败时，显示错误提示
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '加载签名文件失败';
+                    select.appendChild(option);
+                    console.error('获取签名文件列表失败:', result.message);
+                }
+                // 触发change事件以更新按钮状态
+                select.dispatchEvent(new Event('change'));
+            })
+            .catch(error => {
+                console.error('加载签名文件失败:', error);
+                const select = document.getElementById('keystoreSelect');
+                select.innerHTML = '<option value="">加载失败，请刷新重试</option>';
+                select.dispatchEvent(new Event('change'));
+            });
+    }
+
+    // 页面加载时获取签名文件列表
+    document.addEventListener('DOMContentLoaded', loadKeystores);
 
     // 表单提交处理
     document.getElementById('uploadForm').onsubmit = function (e) {
         e.preventDefault();
-
+        
+        if (!keystoreSelect.value) {
+            alert('请选择签名文件');
+            return;
+        }
+        
         const formData = new FormData(this);
+        formData.append('keystore', keystoreSelect.value);
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
         const progressContainer = document.getElementById('progressContainer');
@@ -370,6 +451,15 @@
         window.location.href = contextPath + '/download';
         return false;
     };
+
+    // 修改上传按钮状态控制
+    function updateSubmitButtonState() {
+        const hasFile = fileInput.files.length > 0;
+        const hasKeystore = keystoreSelect.value !== '';
+        submitBtn.disabled = !(hasFile && hasKeystore);
+    }
+
+    keystoreSelect.onchange = updateSubmitButtonState;
     //]]>
 </script>
 </body>
